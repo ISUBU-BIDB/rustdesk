@@ -1,6 +1,9 @@
 # ISUBU-BIDB RustDesk
 
-Resmi RustDesk sürümleri + ISUBU-BIDB ayarları. `isubu` dalı = upstream tag + **tek** yama commit'i.
+Resmi RustDesk sürümleri + ISUBU-BIDB ayarları. `isubu` dalı = upstream tag + ISUBU yama commit'leri.
+
+Amaç: masaüstü uygulamasındaki güncelleme kartı kullanıcıları resmi siteye/sürüme
+yönlendirmesin; güncellemeler yalnızca bu repodan ve bidbdestek sayfasından gelsin.
 
 `isubu/patch.sh` (derleme sırasında, `config.env` değerleriyle):
 
@@ -21,28 +24,34 @@ git checkout -- . && git -C libs/hbb_common checkout -- .
 
 ## Yayın akışı
 
-- `isubu-sync.yml` (her gün + elle): rustdesk/rustdesk son release'i burada yoksa
-  `isubu-<tag>` = `<tag>` + yama commit'i oluşturur, push eder ve `isubu-release.yml`'i başlatır.
-  Çakışmada job başarısız olur ve issue açılır.
-- `isubu-release.yml` (elle: dal seç, `tag` gir): release'i prerelease olarak açar,
-  `flutter-build.yml`'i `upload-tag=<tag>` ile çalıştırır, hepsi başarılıysa yayınlar (latest).
-  Bazı derlemeler başarısız olduysa `publish_only` ile sadece yayınlanabilir.
+- `isubu-release.yml` (elle: Actions → ISUBU Release → Run workflow, dal seç, `tag` gir):
+  release'i prerelease olarak açar, `flutter-build.yml`'i `upload-tag=<tag>` ile çalıştırır,
+  hepsi başarılıysa yayınlar (latest). Bazı derlemeler başarısız olduysa `publish_only`
+  ile derlemeden sadece yayınlanabilir.
 - Panel (`https://bidbdestek.isparta.edu.tr/api/version/latest`) son yayınlanmış release'i döner.
   İstemcideki güncelleme kartı yalnızca burada daha yeni bir sürüm varsa görünür.
+- `isubu-sync.yml` elle çalışır ve `SYNC_PAT` secret'ı ister (şu an tanımlı değil);
+  yeni sürüm aşağıdaki gibi lokalde taşınır.
+
+## Yeni sürüm (ör. 1.5.1)
+
+```bash
+git fetch upstream --no-tags refs/tags/1.5.1:refs/tags/1.5.1
+BASE=$(git merge-base isubu 1.5.1)
+git switch -c isubu-1.5.1 1.5.1
+git cherry-pick "$BASE..isubu"   # çakışma olursa çöz, git cherry-pick --continue
+git submodule update --init libs/hbb_common
+bash isubu/patch.sh && git diff --stat   # hatasız bitmeli; sonra geri al:
+git checkout -- . && git -C libs/hbb_common checkout -- .
+git push origin isubu-1.5.1
+git branch -f isubu isubu-1.5.1 && git push -f origin isubu
+```
+
+Ardından Actions → ISUBU Release → Run workflow: dal `isubu-1.5.1`, tag `1.5.1`.
 
 ## Kurulum (bir kez)
 
-- Repo varsayılan dalı: `isubu` (zamanlanmış workflow'lar yalnızca varsayılan dalda çalışır).
+- Repo varsayılan dalı: `isubu`.
 - Actions sekmesinden workflow'ları etkinleştirin.
-- Secret `SYNC_PAT`: `repo` + `workflow` yetkili PAT (fine-grained: Contents + Workflows yazma).
+- İsteğe bağlı secret `SYNC_PAT` (`repo` + `workflow` yetkili PAT): yalnızca `isubu-sync.yml` için.
 - İsteğe bağlı: Settings → Features → Issues (çakışma bildirimi için).
-
-## Yeni sürümde yama elle taşınırsa
-
-```bash
-git fetch upstream --tags
-git switch -c isubu-X.Y.Z X.Y.Z
-git cherry-pick isubu            # çakışmaları çöz
-bash isubu/patch.sh              # dene, sonra geri al
-git branch -f isubu HEAD && git push -f origin isubu isubu-X.Y.Z
-```

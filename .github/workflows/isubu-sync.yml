@@ -1,15 +1,14 @@
 name: ISUBU Sync
 
-# Resmi RustDesk'te yeni sürüm çıkınca ISUBU yama commit'ini (isubu dalının ucu)
-# o sürümün üzerine taşır ve isubu-release.yml'i başlatır.
+# Elle çalıştırılır (zamanlama yok; resmi sürümler yaklaşık ayda bir çıkıyor).
+# Yeni resmi RustDesk sürümünde ISUBU yama commit'lerini (upstream tag..isubu) o sürümün
+# üzerine taşır, isubu-<tag> dalını push eder ve isubu-release.yml'i başlatır.
 #
-# Gereken secret: SYNC_PAT (repo + workflow yetkili). Workflow dosyası içeren
-# commit'i push etmek GITHUB_TOKEN ile mümkün değil.
-# Zamanlama yalnızca varsayılan daldan çalışır: repo varsayılan dalı "isubu" olmalı.
+# Gereken secret: SYNC_PAT (repo + workflow yetkili). Workflow dosyası içeren commit'leri
+# push etmek GITHUB_TOKEN ile mümkün değil. Secret yoksa aynı iş lokalde yapılır
+# (bkz. isubu/README.md "Yeni sürüm").
 
 on:
-  schedule:
-    - cron: "30 3 * * *"
   workflow_dispatch:
     inputs:
       tag:
@@ -28,6 +27,12 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Check SYNC_PAT
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          [ -n "$SYNC_PAT" ] || { echo "::error::SYNC_PAT secret tanımlı değil. Yeni sürümü lokalde taşıyın (isubu/README.md)."; exit 1; }
+
       - name: Find upstream release
         id: up
         env:
@@ -62,8 +67,9 @@ jobs:
           git config user.name "isubu-sync"
           git config user.email "isubu-sync@users.noreply.github.com"
           git fetch --no-tags https://github.com/rustdesk/rustdesk.git "refs/tags/$TAG:refs/tags/upstream-$TAG"
+          BASE=$(git merge-base isubu "upstream-$TAG")
           git switch -c "isubu-$TAG" "upstream-$TAG"
-          if ! git cherry-pick isubu; then
+          if ! git cherry-pick "$BASE..isubu"; then
             git cherry-pick --abort || true
             echo "conflict=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -94,5 +100,5 @@ jobs:
             --title "RustDesk $TAG: ISUBU yaması elle taşınmalı" \
             --body "isubu-sync, yama commit'ini $TAG üzerine otomatik uygulayamadı (cherry-pick çakışması ya da isubu/patch.sh hatası). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
-          Elle: \`git switch -c isubu-$TAG $TAG && git cherry-pick isubu\`, çakışmaları çöz, \`bash isubu/patch.sh\` ile dene, isubu dalını bu commit'e taşı, push et ve isubu-release.yml'i tag=$TAG ile çalıştır." \
+          Elle: isubu/README.md \"Yeni sürüm\" adımları, çakışmaları çöz, \`bash isubu/patch.sh\` ile dene, isubu dalını bu commit'e taşı, push et ve isubu-release.yml'i tag=$TAG ile çalıştır." \
             || echo "Issue açılamadı (repo'da Issues kapalı olabilir)"
