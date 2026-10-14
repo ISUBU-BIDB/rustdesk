@@ -1,0 +1,74 @@
+name: ISUBU Release
+
+# ISUBU-BIDB derlemesini yayınlar. isubu-sync.yml tarafından isubu-<tag> dalında
+# tetiklenir; elle de çalıştırılabilir (Run workflow -> dal seç -> tag gir).
+#
+# Release önce "prerelease" olarak oluşturulur. GitHub'ın /releases/latest yanıtı
+# prerelease'leri içermez, bu yüzden panel (bidbdestek) yarım release'i görmez.
+# Tüm derlemeler başarılı olunca release normal sürüme çevrilir ve "latest" olur.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Sürüm (upstream tag, ör. 1.5.0)"
+        required: true
+        type: string
+      publish_only:
+        description: "Derlemeden sadece yayınla (bazı derlemeler başarısız olduysa, elle)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: isubu-release-${{ inputs.tag }}
+
+env:
+  TAG: ${{ inputs.tag }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  prepare:
+    if: ${{ !inputs.publish_only }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Check version and patches
+        run: |
+          # Varlık adları (rustdesk-<VERSION>-...) tag ile aynı olmalı; güncelleyici bu adı bekler
+          grep -qE "^  VERSION: \"$TAG\"$" .github/workflows/flutter-build.yml \
+            || { echo "flutter-build.yml VERSION '$TAG' değil"; exit 1; }
+          bash isubu/patch.sh
+
+      - name: Create prerelease
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG zaten var, varlıklar üzerine yüklenecek"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --prerelease --title "RustDesk $TAG (ISUBU)" \
+              --notes "Resmi RustDesk $TAG + ISUBU-BIDB ayarları (ID sunucusu: bidbdestek.isparta.edu.tr). İndirme: https://bidbdestek.isparta.edu.tr/"
+          fi
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/flutter-build.yml
+    secrets: inherit
+    with:
+      upload-artifact: true
+      upload-tag: ${{ inputs.tag }}
+
+  publish:
+    needs: build
+    if: ${{ always() && (inputs.publish_only || needs.build.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: |
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'

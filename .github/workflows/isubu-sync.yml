@@ -1,0 +1,98 @@
+name: ISUBU Sync
+
+# Resmi RustDesk'te yeni sürüm çıkınca ISUBU yama commit'ini (isubu dalının ucu)
+# o sürümün üzerine taşır ve isubu-release.yml'i başlatır.
+#
+# Gereken secret: SYNC_PAT (repo + workflow yetkili). Workflow dosyası içeren
+# commit'i push etmek GITHUB_TOKEN ile mümkün değil.
+# Zamanlama yalnızca varsayılan daldan çalışır: repo varsayılan dalı "isubu" olmalı.
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Upstream tag (boşsa rustdesk/rustdesk son release)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: isubu-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find upstream release
+        id: up
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          TAG="$INPUT_TAG"
+          [ -n "$TAG" ] || TAG=$(gh api repos/rustdesk/rustdesk/releases/latest --jq .tag_name)
+          [ -n "$TAG" ] || { echo "upstream tag okunamadı"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG zaten var"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --heads "https://github.com/$GITHUB_REPOSITORY.git" "isubu-$TAG" >/dev/null; then
+            echo "isubu-$TAG dalı zaten var (derleme sürüyor ya da başarısız oldu)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        if: steps.up.outputs.skip != 'true'
+        with:
+          ref: isubu
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Rebase patch onto upstream tag
+        id: pick
+        if: steps.up.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.up.outputs.tag }}
+        run: |
+          git config user.name "isubu-sync"
+          git config user.email "isubu-sync@users.noreply.github.com"
+          git fetch --no-tags https://github.com/rustdesk/rustdesk.git "refs/tags/$TAG:refs/tags/upstream-$TAG"
+          git switch -c "isubu-$TAG" "upstream-$TAG"
+          if ! git cherry-pick isubu; then
+            git cherry-pick --abort || true
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          git submodule update --init --depth 1 libs/hbb_common
+          if ! bash isubu/patch.sh; then
+            echo "patchfail=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          git checkout -- . && git submodule foreach --recursive git checkout -- .
+
+      - name: Push branch and start release
+        if: steps.up.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.up.outputs.tag }}
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+        run: |
+          git push origin "isubu-$TAG"
+          gh workflow run isubu-release.yml --repo "$GITHUB_REPOSITORY" --ref "isubu-$TAG" -f tag="$TAG"
+
+      - name: Open issue on failure
+        if: failure() && (steps.pick.outputs.conflict == 'true' || steps.pick.outputs.patchfail == 'true')
+        env:
+          TAG: ${{ steps.up.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "RustDesk $TAG: ISUBU yaması elle taşınmalı" \
+            --body "isubu-sync, yama commit'ini $TAG üzerine otomatik uygulayamadı (cherry-pick çakışması ya da isubu/patch.sh hatası). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          Elle: \`git switch -c isubu-$TAG $TAG && git cherry-pick isubu\`, çakışmaları çöz, \`bash isubu/patch.sh\` ile dene, isubu dalını bu commit'e taşı, push et ve isubu-release.yml'i tag=$TAG ile çalıştır." \
+            || echo "Issue açılamadı (repo'da Issues kapalı olabilir)"
