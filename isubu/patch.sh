@@ -7,6 +7,7 @@
 # hata verir, derleme yamasız devam etmez. Tekrar çalıştırmak güvenlidir.
 #
 # Linux/macOS/Windows (Git Bash) runner'larında çalışsın diye sed yerine perl kullanılır.
+# Windows runner'ında dosyalar CRLF ile çekilir; çok satırlı desenler \r?\n kullanır.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -44,7 +45,7 @@ replace libs/hbb_common/src/lib.rs \
 
 # 3. "Update" düğmesi yalnızca ISUBU release varlıklarını indirir
 replace src/updater.rs \
-    's/if owner != "rustdesk"\n(\s*)\|\| repo != "rustdesk"/if owner != "$ENV{ISUBU_OWNER}"\n$1|| repo != "$ENV{ISUBU_REPO_NAME}"/' \
+    's/if owner != "rustdesk"(\r?\n\s*)\|\| repo != "rustdesk"/if owner != "$ENV{ISUBU_OWNER}"$1|| repo != "$ENV{ISUBU_REPO_NAME}"/' \
     "if owner != \"$ISUBU_OWNER\""
 # updater birim testindeki kabul edilen örnek URL
 replace src/updater.rs \
@@ -69,7 +70,7 @@ replace src/ui/index.tis \
 # 5. ID sunucusu config'e (RustDesk2.toml) de yazılır; resmi sürüme geçilse bile korunur.
 #    Kullanıcı başka bir sunucu girmişse dokunulmaz.
 if ! grep -qF 'ISUBU: kalıcı sunucu ayarı' src/core_main.rs; then
-    perl -0pi -e 's/(pub fn core_main\(\) -> Option<Vec<String>> \{\n(?:.*\n)*?    crate::load_custom_client\(\);\n)/$1    \/\/ ISUBU: kalıcı sunucu ayarı\n    if config::Config::get_option("custom-rendezvous-server").is_empty() {\n        config::Config::set_option("custom-rendezvous-server".to_owned(), "$ENV{ISUBU_HOST}".to_owned());\n        if config::Config::get_option("key").is_empty() {\n            config::Config::set_option("key".to_owned(), "$ENV{ISUBU_KEY}".to_owned());\n        }\n    }\n/' src/core_main.rs
+    perl -0pi -e 's/(pub fn core_main\(\) -> Option<Vec<String>> \{\r?\n(?:.*\n)*?    crate::load_custom_client\(\);\r?\n)/$1    \/\/ ISUBU: kalıcı sunucu ayarı\n    if config::Config::get_option("custom-rendezvous-server").is_empty() {\n        config::Config::set_option("custom-rendezvous-server".to_owned(), "$ENV{ISUBU_HOST}".to_owned());\n        if config::Config::get_option("key").is_empty() {\n            config::Config::set_option("key".to_owned(), "$ENV{ISUBU_KEY}".to_owned());\n        }\n    }\n/' src/core_main.rs
 fi
 grep -qF "config::Config::set_option(\"custom-rendezvous-server\".to_owned(), \"$ISUBU_HOST\".to_owned());" src/core_main.rs \
     || fail "src/core_main.rs: kalıcı sunucu ayarı eklenemedi"

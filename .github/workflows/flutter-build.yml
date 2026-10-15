@@ -55,6 +55,7 @@ env:
 
 jobs:
   generate-sbom:
+    if: false # ISUBU: bu derleme kullanılmıyor
     runs-on: ubuntu-latest
 
     permissions:
@@ -78,12 +79,12 @@ jobs:
             -o cyclonedx-json=rustdesk.sbom.json
 
       - name: Publish Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-1
+          if-no-files-found: error
+          path: |
             rustdesk.sbom.json
 
   generate-bridge:
@@ -127,16 +128,6 @@ jobs:
               flutter-arch: x64,
               vcpkg-triplet: x64-windows-static,
               build-args: "--vram",
-            }
-          - {
-              target: aarch64-pc-windows-msvc,
-              os: windows-11-arm,
-              arch: aarch64,
-              flutter-arch: arm64,
-              vcpkg-triplet: arm64-windows-static,
-              # vram is x86/x64-only (NVENC needs CUDA, Intel MediaSDK needs __rdtsc);
-              # no NV/Intel/AMD hardware exists on Windows-on-ARM, so vram stays disabled here.
-              build-args: "",
             }
     steps:
       - name: Export GitHub Actions cache environment variables
@@ -459,17 +450,18 @@ jobs:
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
 
       - name: Publish Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-2
+          if-no-files-found: error
+          path: |
             ./SignOutput/rustdesk-*.msi
             ./SignOutput/rustdesk-*.exe
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
+    if: false # ISUBU: bu derleme kullanılmıyor
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     runs-on: ${{ matrix.job.os }}
     # Temporarily disable this action due to additional test is needed.
@@ -625,16 +617,16 @@ jobs:
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput/
 
       - name: Publish Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-3
+          if-no-files-found: error
+          path: |
             ./SignOutput/rustdesk-*.exe
 
   build-rustdesk-ios:
-    if: ${{ inputs.upload-artifact }}
+    if: false # ISUBU: bu derleme kullanılmıyor
     name: build rustdesk ios ipa
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -985,11 +977,11 @@ jobs:
 
       - name: Publish DMG package
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-4
+          if-no-files-found: error
+          path: |
             rustdesk*-${{ matrix.job.arch }}.dmg
 
   publish_unsigned:
@@ -998,7 +990,7 @@ jobs:
       - build-for-windows-flutter
       - build-for-windows-sciter
     runs-on: ubuntu-latest
-    if: ${{ inputs.upload-artifact }}
+    if: false # ISUBU: bu derleme kullanılmıyor
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1047,11 +1039,12 @@ jobs:
           tar czf rustdesk-${{ env.VERSION }}-unsigned.tar.gz *.dmg windows-x86_64 windows-aarch64 windows-x86 msi-template
 
       - name: Publish unsigned app
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: rustdesk-${{ env.VERSION }}-unsigned.tar.gz
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-5
+          if-no-files-found: error
+          path: |
+            rustdesk-${{ env.VERSION }}-unsigned.tar.gz
 
   build-rustdesk-android:
     needs: [generate-bridge]
@@ -1064,20 +1057,6 @@ jobs:
           - {
               arch: aarch64,
               target: aarch64-linux-android,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
-          - {
-              arch: armv7,
-              target: armv7-linux-androideabi,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
-          - {
-              arch: x86_64,
-              target: x86_64-linux-android,
               os: ubuntu-24.04,
               reltype: release,
               suffix: "",
@@ -1334,26 +1313,26 @@ jobs:
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-6
+          if-no-files-found: error
+          path: |
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-7
+          if-no-files-found: error
+          path: |
             signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
 
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
     name: build rustdesk android universal apk
-    if: ${{ inputs.upload-artifact }}
+    if: false # ISUBU: bu derleme kullanılmıyor
     runs-on: ubuntu-24.04
     env:
       reltype: release
@@ -1523,20 +1502,20 @@ jobs:
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-8
+          if-no-files-found: error
+          path: |
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-9
+          if-no-files-found: error
+          path: |
             signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
   build-rustdesk-linux:
@@ -1555,14 +1534,6 @@ jobs:
               on: ubuntu-22.04,
               deb_arch: amd64,
               vcpkg-triplet: x64-linux,
-            }
-          - {
-              arch: aarch64,
-              target: aarch64-unknown-linux-gnu,
-              distro: ubuntu18.04,
-              on: ubuntu-22.04-arm,
-              deb_arch: arm64,
-              vcpkg-triplet: arm64-linux,
             }
     steps:
       - name: Export GitHub Actions cache environment variables
@@ -1844,11 +1815,11 @@ jobs:
 
       - name: Publish debian/rpm package
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-10
+          if-no-files-found: error
+          path: |
             rustdesk-*.deb
             rustdesk-*.rpm
 
@@ -1880,11 +1851,11 @@ jobs:
 
       - name: Publish archlinux package
         if: matrix.job.arch == 'x86_64' && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-11
+          if-no-files-found: error
+          path: |
             res/rustdesk-${{ env.VERSION }}*.zst
 
   # Same build as build-rustdesk-linux x86_64 -- same vcpkg/ffmpeg, same ubuntu18.04 container, same
@@ -1893,6 +1864,7 @@ jobs:
   # old for it. A separate job rather than a matrix entry of build-rustdesk-linux: appimage and
   # flatpak need that job, and a failure here must not skip them.
   build-rustdesk-linux-drm:
+    if: false # ISUBU: bu derleme kullanılmıyor
     needs: [generate-bridge]
     name: build rustdesk linux drm x86_64
     runs-on: ubuntu-22.04
@@ -2190,11 +2162,11 @@ jobs:
 
       - name: Publish debian package
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-12
+          if-no-files-found: error
+          path: |
             ${{ env.DRM_DEB }}
 
       # No UPLOAD_ARTIFACT gate: on a PR this is the only way to get at the deb that was just built.
@@ -2207,7 +2179,7 @@ jobs:
           path: ${{ env.DRM_DEB }}
 
   build-rustdesk-linux-sciter:
-    if: ${{ inputs.upload-artifact }}
+    if: false # ISUBU: bu derleme kullanılmıyor
     runs-on: ${{ matrix.job.on }}
     name: build-rustdesk-linux-sciter ${{ matrix.job.target }}
     strategy:
@@ -2438,11 +2410,11 @@ jobs:
 
       - name: Publish debian package
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-13
+          if-no-files-found: error
+          path: |
             rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.deb
 
       - name: Upload deb
@@ -2462,7 +2434,6 @@ jobs:
       matrix:
         job:
           - { target: x86_64-unknown-linux-gnu, arch: x86_64 }
-          - { target: aarch64-unknown-linux-gnu, arch: aarch64 }
     steps:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -2502,11 +2473,11 @@ jobs:
 
       - name: Publish appimage package
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-14
+          if-no-files-found: error
+          path: |
             ./appimage/rustdesk-${{ env.VERSION }}-*.AppImage
 
   build-flatpak:
@@ -2515,7 +2486,7 @@ jobs:
       - build-rustdesk-linux
       - build-rustdesk-linux-sciter
     runs-on: ${{ matrix.job.on }}
-    if: ${{ inputs.upload-artifact }}
+    if: false # ISUBU: bu derleme kullanılmıyor
     strategy:
       fail-fast: false
       matrix:
@@ -2591,11 +2562,11 @@ jobs:
             flatpak build-bundle ./repo rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak com.rustdesk.RustDesk
 
       - name: Publish flatpak package
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-15
+          if-no-files-found: error
+          path: |
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
 
   build-rustdesk-web:
@@ -2679,9 +2650,9 @@ jobs:
 
       - name: Publish web
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ISUBU: release yerine artifact
         with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
+          name: isubu-release-${{ github.job }}-${{ strategy.job-index }}-16
+          if-no-files-found: error
+          path: |
             flutter/build/rustdesk-${{ env.VERSION }}-${{ env.RELEASE_NAME }}.tar.gz
