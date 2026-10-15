@@ -5,7 +5,10 @@ name: ISUBU Release
 #
 # Release önce "prerelease" olarak oluşturulur. GitHub'ın /releases/latest yanıtı
 # prerelease'leri içermez, bu yüzden panel (bidbdestek) yarım release'i görmez.
-# Tüm derlemeler başarılı olunca release normal sürüme çevrilir ve "latest" olur.
+# Derleme işleri dosyaları release'e değil "isubu-release-*" artifact'larına yükler;
+# hepsi başarılı olunca publish işi bunları release'e ekler, release'i "latest" yapar.
+# Yalnızca indirme sayfasındaki platformlar derlenir: Windows x64 (exe+msi),
+# macOS x64/arm64 (dmg), Linux x64 (AppImage, deb), Android arm64 (apk).
 
 on:
   workflow_dispatch:
@@ -68,6 +71,20 @@ jobs:
     if: ${{ always() && (inputs.publish_only || needs.build.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Download build artifacts
+        if: ${{ !inputs.publish_only }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: isubu-release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Upload to release
+        if: ${{ !inputs.publish_only }}
+        run: |
+          ls -la dist
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
       - name: Publish release
         run: |
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
