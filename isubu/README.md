@@ -13,6 +13,7 @@ yönlendirmesin; güncellemeler yalnızca bu repodan ve bidbdestek sayfasından 
 4. "Download" bidbdestek indirme sayfasını açar (flutter + sciter).
 5. İlk açılışta `custom-rendezvous-server` ve `key` config'e yazılır (`src/core_main.rs`).
    Kullanıcı başka bir sunucu girmişse dokunulmaz. Resmi sürüme geçilse bile ayar korunur.
+6. Panel API'si (heartbeat, bağlantı kayıtları) `http://<ID sunucusu>:21114` yerine `ISUBU_API_URL` (HTTPS 443) adresine gider; 21114 kampüs dışından erişilemez (`src/common.rs`).
 
 Desen bulunamazsa script hata verir; derleme yamasız çıkmaz. Lokal deneme:
 

@@ -76,6 +76,16 @@ grep -qF "config::Config::set_option(\"custom-rendezvous-server\".to_owned(), \"
     || fail "src/core_main.rs: kalıcı sunucu ayarı eklenemedi"
 echo "ok  src/core_main.rs"
 
+# 6. Panel API'si: ID sunucusu ISUBU_HOST ise http://<host>:21114 yerine ISUBU_API_URL (443).
+#    21114 kampüs dışından erişilemiyor; dışarıdaki cihazların bağlantı kayıtları panele ulaşmıyordu.
+#    "API sunucusu" ayarı elle girilmişse o kullanılır (bu koddan önce döner).
+if ! grep -qF 'ISUBU: panel API' src/common.rs; then
+    perl -0pi -e 's/(    let s0 = get_custom_rendezvous_server\(custom\);\r?\n    if !s0\.is_empty\(\) \{\r?\n)/$1        \/\/ ISUBU: panel API\n        if s0.split(\x27:\x27).next() == Some("$ENV{ISUBU_HOST}") {\n            return "$ENV{ISUBU_API_URL}".to_owned();\n        }\n/' src/common.rs
+fi
+grep -qF "return \"$ISUBU_API_URL\".to_owned();" src/common.rs \
+    || fail "src/common.rs: panel API adresi eklenemedi"
+echo "ok  src/common.rs"
+
 # Yorum dışında resmi güncelleme/indirme adresi kalmamalı
 if grep -rnE 'api\.rustdesk\.com/version|rustdesk\.com/download\b' libs/hbb_common/src src flutter/lib 2>/dev/null \
         | grep -vE ':[0-9]+:[[:space:]]*//'; then
