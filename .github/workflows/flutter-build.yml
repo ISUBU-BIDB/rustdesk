@@ -972,6 +972,8 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           for name in rustdesk*??.dmg; do
+              # ISUBU: imzasız dmg zaten mimari sonekli; tekrar eklenmez
+              case "$name" in *-${{ matrix.job.arch }}.dmg) continue ;; esac
               mv "$name" "${name%%.dmg}-${{ matrix.job.arch }}.dmg"
           done
 
