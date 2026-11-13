@@ -43,14 +43,16 @@ replace libs/hbb_common/src/lib.rs \
     's#"https://api\.rustdesk\.com/version/latest"#"$ENV{ISUBU_VERSION_URL}"#' \
     "const URL: &str = \"$ISUBU_VERSION_URL\";"
 
-# 3. "Update" düğmesi yalnızca ISUBU release varlıklarını indirir
-replace src/updater.rs \
+# 3. "Update" düğmesi yalnızca ISUBU release varlıklarını indirir.
+#    1.5.3'te indirme doğrulaması src/updater/artifact.rs'e taşındı; imzalı
+#    rustdesk-update.json de bu sürümden itibaren zorunlu (bkz. adım 7).
+replace src/updater/artifact.rs \
     's/if owner != "rustdesk"(\r?\n\s*)\|\| repo != "rustdesk"/if owner != "$ENV{ISUBU_OWNER}"$1|| repo != "$ENV{ISUBU_REPO_NAME}"/' \
     "if owner != \"$ISUBU_OWNER\""
-# updater birim testindeki kabul edilen örnek URL
-replace src/updater.rs \
-    's#https://github\.com/rustdesk/rustdesk/releases/download/1\.4\.0/#https://github.com/$ENV{ISUBU_REPO}/releases/download/1.4.0/#' \
-    "https://github.com/$ISUBU_REPO/releases/download/1.4.0/"
+# Meta veri ve varlık adresleri ISUBU release'ine bakar (birim testi örneği dahil)
+replace src/updater/artifact.rs \
+    's#https://github\.com/rustdesk/rustdesk/releases/download/#https://github.com/$ENV{ISUBU_REPO}/releases/download/#g' \
+    "https://github.com/$ISUBU_REPO/releases/download/"
 # Sürüm notu linki
 replace flutter/lib/desktop/pages/desktop_home_page.dart \
     's#https://github\.com/rustdesk/rustdesk/releases/tag/#https://github.com/$ENV{ISUBU_REPO}/releases/tag/#g' \
@@ -70,7 +72,7 @@ replace src/ui/index.tis \
 # 5. ID sunucusu config'e (RustDesk2.toml) de yazılır; resmi sürüme geçilse bile korunur.
 #    Kullanıcı başka bir sunucu girmişse dokunulmaz.
 if ! grep -qF 'ISUBU: kalıcı sunucu ayarı' src/core_main.rs; then
-    perl -0pi -e 's/(pub fn core_main\(\) -> Option<Vec<String>> \{\r?\n(?:.*\n)*?    crate::load_custom_client\(\);\r?\n)/$1    \/\/ ISUBU: kalıcı sunucu ayarı\n    if config::Config::get_option("custom-rendezvous-server").is_empty() {\n        config::Config::set_option("custom-rendezvous-server".to_owned(), "$ENV{ISUBU_HOST}".to_owned());\n        if config::Config::get_option("key").is_empty() {\n            config::Config::set_option("key".to_owned(), "$ENV{ISUBU_KEY}".to_owned());\n        }\n    }\n/' src/core_main.rs
+    perl -0pi -e 's/(pub fn core_main\(\) -> Option<CoreMainAction> \{\r?\n(?:.*\n)*?    crate::load_custom_client\(\);\r?\n)/$1    \/\/ ISUBU: kalıcı sunucu ayarı\n    if config::Config::get_option("custom-rendezvous-server").is_empty() {\n        config::Config::set_option("custom-rendezvous-server".to_owned(), "$ENV{ISUBU_HOST}".to_owned());\n        if config::Config::get_option("key").is_empty() {\n            config::Config::set_option("key".to_owned(), "$ENV{ISUBU_KEY}".to_owned());\n        }\n    }\n/' src/core_main.rs
 fi
 grep -qF "config::Config::set_option(\"custom-rendezvous-server\".to_owned(), \"$ISUBU_HOST\".to_owned());" src/core_main.rs \
     || fail "src/core_main.rs: kalıcı sunucu ayarı eklenemedi"
@@ -86,9 +88,21 @@ grep -qF "return \"$ISUBU_API_URL\".to_owned();" src/common.rs \
     || fail "src/common.rs: panel API adresi eklenemedi"
 echo "ok  src/common.rs"
 
+# 7. Güncelleme meta verisi imzası (1.5.3+). İstemci yalnızca bu anahtarla imzalanmış
+#    rustdesk-update.json'ı kabul eder; anahtar her derlemede gömülür.
+#    Özel anahtar GitHub secret'ında, imzalama isubu-release.yml publish işinde yapılır.
+replace src/update_metadata.rs \
+    's/(key_id: "2026-ed25519-main",\s*algorithm: SIGNATURE_ALGORITHM,\s*public_key: \[)[^\]]*(\])/$1$ENV{ISUBU_UPDATE_PUBLIC_KEY}$2/s' \
+    "public_key: [$ISUBU_UPDATE_PUBLIC_KEY]"
+
 # Yorum dışında resmi güncelleme/indirme adresi kalmamalı
 if grep -rnE 'api\.rustdesk\.com/version|rustdesk\.com/download\b' libs/hbb_common/src src flutter/lib 2>/dev/null \
         | grep -vE ':[0-9]+:[[:space:]]*//'; then
     fail "yukarıdaki resmi adresler yamalanmadı"
 fi
+if grep -nF 'https://github.com/rustdesk/rustdesk/releases/download/' src/updater/artifact.rs; then
+    fail "src/updater/artifact.rs: meta veri indirme adresi ISUBU release'ine çevrilmedi"
+fi
+grep -qF "if owner != \"$ISUBU_OWNER\"" src/updater/artifact.rs \
+    || fail "src/updater/artifact.rs: sahip kontrolü ISUBU değil"
 echo "isubu/patch.sh: tüm yamalar uygulandı"
