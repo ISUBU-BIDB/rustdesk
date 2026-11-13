@@ -86,6 +86,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          clean: false   # dist/ indirilen artifact'lar korunsun
 
       - name: Install Python
         if: ${{ !inputs.publish_only }}
