@@ -53,6 +53,14 @@ replace src/updater/artifact.rs \
 replace src/updater/artifact.rs \
     's#https://github\.com/rustdesk/rustdesk/releases/download/#https://github.com/$ENV{ISUBU_REPO}/releases/download/#g' \
     "https://github.com/$ISUBU_REPO/releases/download/"
+# Panel GitHub release tag URL'i döndürür; 1.5.3 sahip/repo adını burada da sabit kontrol ediyor
+replace src/common.rs \
+    's/\["rustdesk", "rustdesk", "releases", "tag",/[\"$ENV{ISUBU_OWNER}\", \"$ENV{ISUBU_REPO_NAME}\", \"releases\", \"tag\",/g' \
+    "[\"$ISUBU_OWNER\", \"$ISUBU_REPO_NAME\", \"releases\", \"tag\","
+# release_id_from_update_url birim testindeki kabul edilen örnek URL
+replace src/common.rs \
+    's#https://github\.com/rustdesk/rustdesk/releases/tag/v1\.4\.6#https://github.com/$ENV{ISUBU_REPO}/releases/tag/v1.4.6#' \
+    "https://github.com/$ISUBU_REPO/releases/tag/v1.4.6"
 # Sürüm notu linki
 replace flutter/lib/desktop/pages/desktop_home_page.dart \
     's#https://github\.com/rustdesk/rustdesk/releases/tag/#https://github.com/$ENV{ISUBU_REPO}/releases/tag/#g' \
